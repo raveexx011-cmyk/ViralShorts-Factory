@@ -159,12 +159,7 @@ def _safe_delay(rpm: int) -> float:
 # v17.9.33: All delays now include 10% safety margin
 DEFAULT_MODELS = {
     # Groq - shared 14,400/day quota across all models
-    "groq:llama-3.3-70b-versatile": ModelInfo(
-        provider="groq", model_id="llama-3.3-70b-versatile",
-        daily_limit=300, rate_limit=30, delay=_safe_delay(30),  # 2.2s
-        quality_general=8.5, quality_creative=9.0, quality_structured=8.0, quality_speed=9.0,
-        robustness=0.98, available=True
-    ),
+    
     # REMOVED: llama-3.1-70b-versatile - DECOMMISSIONED by Groq (Jan 2026)
     "groq:llama-3.1-8b-instant": ModelInfo(
         provider="groq", model_id="llama-3.1-8b-instant",
@@ -240,7 +235,6 @@ class SmartModelRouter:
         "gemini-1.5-flash": 20,
         # REMOVED: gemini-1.5-pro - deprecated (404)
         # Groq: Token-based (100K for 70b, 500K for 8b)
-        "llama-3.3-70b-versatile": 50,   # ~100K TPD / 2K per call
         "llama-3.1-8b-instant": 250,     # ~500K TPD / 2K per call
         "mixtral-8x7b-32768": 100,
     }
