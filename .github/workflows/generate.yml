@@ -6,7 +6,7 @@ on:
       batch_size:
         description: 'Videos to generate (1 per workflow = 6/day for YouTube)'
         required: false
-        default: '1' # v17.9.7: YouTube-only focus (6 runs/day × 1 video = 6/day)
+        default: '1'
       test_only:
         description: 'Test mode - generate but DO NOT upload (saves quota)'
         required: false
@@ -24,12 +24,12 @@ on:
           - 'false'
           - 'true'
   schedule:
-    - cron: '0 0 * * *' # 00:00 UTC - Video 1/6
-    - cron: '0 4 * * *' # 04:00 UTC - Video 2/6
-    - cron: '0 8 * * *' # 08:00 UTC - Video 3/6
-    - cron: '0 12 * * *' # 12:00 UTC - Video 4/6
-    - cron: '0 16 * * *' # 16:00 UTC - Video 5/6
-    - cron: '0 20 * * *' # 20:00 UTC - Video 6/6
+    - cron: '0 0 * * *'
+    - cron: '0 4 * * *'
+    - cron: '0 8 * * *'
+    - cron: '0 12 * * *'
+    - cron: '0 16 * * *'
+    - cron: '0 20 * * *'
 
 jobs:
   generate:
@@ -51,7 +51,7 @@ jobs:
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
-          echo "v17.9.12: Checking API availability (FREE endpoints only)..."
+          echo "v17.9.12: Checking API availability..."
           MAX_RETRIES=3
           RETRY_DELAY=30
           HTTP_CODE="000"
@@ -59,26 +59,19 @@ jobs:
             echo "Attempt $ATTEMPT of $MAX_RETRIES..."
             HTTP_CODE=$(curl -s -w "%{http_code}" -o /tmp/models.json "https://generativelanguage.googleapis.com/v1beta/models?key=${GEMINI_API_KEY}" 2>/dev/null || echo "000")
             if [ "$HTTP_CODE" = "200" ]; then
-              echo "✓ Gemini API reachable"
-              MODELS=$(cat /tmp/models.json | grep -o '"name": "models/[^"]*"' | head -5 | sed 's/"name": "models\///g' | tr -d '"' )
-              echo "Available models: $MODELS"
+              echo "Gemini API reachable"
               echo "GEMINI_AVAILABLE=true" >> $GITHUB_ENV
               break
-            elif [ "$HTTP_CODE" = "429" ]; then
-              echo "⚠ Rate limited, waiting ${RETRY_DELAY}s before retry..."
-              sleep $RETRY_DELAY
-              RETRY_DELAY=$((RETRY_DELAY * 2))
-            else
-              echo "⚠ API returned HTTP $HTTP_CODE, waiting ${RETRY_DELAY}s..."
-              sleep $RETRY_DELAY
-              RETRY_DELAY=$((RETRY_DELAY * 2))
             fi
+            echo "API returned $HTTP_CODE, waiting ${RETRY_DELAY}s..."
+            sleep $RETRY_DELAY
+            RETRY_DELAY=$((RETRY_DELAY * 2))
           done
           if [ "$HTTP_CODE"!= "200" ]; then
-            echo "::warning::Gemini API check failed, but proceeding - Python has fallback providers"
+            echo "Gemini check failed, proceeding with fallback"
             echo "GEMINI_AVAILABLE=false" >> $GITHUB_ENV
           fi
-          echo "✓ Proceeding with video generation (Python handles provider selection)"
+          echo "Proceeding with video generation"
 
       - name: Clean stale cache
         run: rm -f data/persistent/smart_router_cache.json data/persistent/variety_state.json data/persistent/smart_router_stats.json
@@ -138,22 +131,18 @@ jobs:
 
       - name: Restore pre-generated concepts
         run: |
-          echo "[INFO] Checking for pre-generated concepts from Pre-Work workflow..."
+          echo "[INFO] Checking for pre-generated concepts..."
           ARTIFACT_ID=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/actions/artifacts?name=pre-generated-concepts&per_page=1" | jq -r '.artifacts[0].id')
           if [ "$ARTIFACT_ID"!= "null" ] && [ -n "$ARTIFACT_ID" ]; then
-            CREATED_AT=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/actions/artifacts/$ARTIFACT_ID" | jq -r '.created_at')
-            echo "Pre-work artifact created at: $CREATED_AT"
             curl -L -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/actions/artifacts/$ARTIFACT_ID/zip" -o /tmp/prework.zip
             mkdir -p data
             unzip -o /tmp/prework.zip -d data/ 2>/dev/null || true
             if [ -f data/pre_generated_concepts.json ]; then
               CONCEPT_COUNT=$(python3 -c "import json; d=json.load(open('data/pre_generated_concepts.json')); print(len(d.get('concepts', [])))")
-              echo "[OK] Loaded $CONCEPT_COUNT pre-generated concepts (saves AI quota!)"
-            else
-              echo "[INFO] Pre-work data downloaded but no concepts file found"
+              echo "[OK] Loaded $CONCEPT_COUNT pre-generated concepts"
             fi
           else
-            echo "[INFO] No pre-generated concepts available - will generate fresh (uses more quota)"
+            echo "[INFO] No pre-generated concepts available"
           fi
         continue-on-error: true
 
@@ -172,15 +161,11 @@ jobs:
           echo "=============================================="
           echo " VIRALSHORTS FACTORY v17.9.7"
           echo " YOUTUBE-ONLY FOCUS"
-          echo " Videos: $BATCH per run (6 runs/day)"
-          echo " Quality: 10 phrases, 50s duration"
-          echo " Dailymotion: DISABLED"
+          echo " Videos: $BATCH per run"
           echo "=============================================="
           if [ "$TEST_ONLY" = "true" ]; then
-            echo "TEST MODE: Generating without uploads"
             python pro_video_generator.py --count $BATCH --no-upload
           else
-            echo "PRODUCTION MODE: YouTube upload only"
             python pro_video_generator.py --count $BATCH --upload --youtube-only
           fi
         env:
@@ -212,75 +197,24 @@ jobs:
           echo "video_count=$VIDEO_COUNT" >> $GITHUB_OUTPUT
           if [ "$VIDEO_COUNT" -eq 0 ]; then
             echo "CRITICAL: No videos were generated!"
-            echo "::error::VIDEO GENERATION FAILED - Check logs above for errors"
             exit 1
-          else
-            echo ""
-            echo "Generated $VIDEO_COUNT video(s)"
-            for f in output/*.mp4; do
-              if [ -f "$f" ]; then
-                SIZE=$(stat --printf="%s" "$f" 2>/dev/null || stat -f%z "$f" 2>/dev/null)
-                SIZE_MB=$((SIZE / 1024 / 1024))
-                echo " - $f (${SIZE_MB}MB)"
-                ffprobe -v quiet -show_format -show_streams "$f" 2>/dev/null | grep -E "(duration|width|height|bit_rate)" || true
-              fi
-            done
           fi
+          echo "Generated $VIDEO_COUNT video(s)"
 
-      - name: Collect Analytics (Learn from past performance)
+      - name: Collect Analytics
         continue-on-error: true
         run: |
           echo "Collecting analytics data..."
           python3 << 'PY'
-          import os
           import sys
           sys.path.insert(0, 'src/analytics')
           sys.path.insert(0, 'src/core')
-          sys.path.insert(0, 'src/enhancements')
-          sys.path.insert(0, 'src/quota')
-          sys.path.insert(0, 'src/utils')
-          sys.path.insert(0, 'src/ai')
-          sys.path.insert(0, 'src/platforms')
           sys.path.insert(0, 'src')
           from analytics_feedback import FeedbackLoopController
-          from pro_video_generator import update_learned_metrics_from_performance
           try:
               controller = FeedbackLoopController()
-              updated = controller.update_all_performance()
-              print(f'Updated performance for {updated} videos')
-              all_videos = controller.metadata_store.get_all()
-              for video in all_videos:
-                  if video.performance and video.performance.views > 0:
-                      perf = {
-                          'views': video.performance.views,
-                          'likes': video.performance.likes,
-                          'comments': video.performance.comments,
-                          'avg_watch_percentage': getattr(video.performance, 'avg_watch_percentage', 50)
-                      }
-                      metrics = {
-                          'duration': video.duration,
-                          'phrase_count': video.phrase_count,
-                          'words_per_phrase': 12
-                      }
-                      update_learned_metrics_from_performance(video.video_id, perf, metrics)
-              print('Updated learned video metrics from performance')
-              if len([v for v in all_videos if v.performance]) >= 5:
-                  print('Running AI analysis...')
-                  insights = controller.run_analysis()
-                  if insights.get('key_insight'):
-                      print(f"Key Insight: {insights['key_insight']}")
-              else:
-                  print('Not enough data for analysis yet (need 5+ videos with views)')
-              try:
-                  from dashboard_generator import DashboardGenerator
-                  dashboard = DashboardGenerator()
-                  html = dashboard.generate_html()
-                  if html:
-                      with open('data/persistent/dashboard.html', 'w') as f:
-                          f.write(html)
-                      print('Generated analytics dashboard')
-              except Exception as de:
-                  print(f'Dashboard generation skipped: {de}')
+              controller.update_all_performance()
+              print('Analytics OK')
           except Exception as e:
               print(f'Analytics error: {e}')
           PY
@@ -302,27 +236,6 @@ jobs:
 
       - name: Summary
         run: |
-          echo "## ViralShorts Factory v17.8 - MAXIMUM QUALITY" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## ViralShorts Factory v17.9.7 - YouTube Focus" >> $GITHUB_STEP_SUMMARY
           echo "**Time:** $(date -u)" >> $GITHUB_STEP_SUMMARY
           echo "**Videos per run:** ${{ github.event.inputs.batch_size || '1' }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Test Mode:** ${{ github.event.inputs.test_only || 'false' }}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### v17.9.7 - YouTube Focus" >> $GITHUB_STEP_SUMMARY
-          echo "- **Platform**: YouTube Shorts ONLY (Dailymotion disabled)" >> $GITHUB_STEP_SUMMARY
-          echo "- **Schedule**: 6 runs/day x 1 video = 6 videos/day" >> $GITHUB_STEP_SUMMARY
-          echo "- **Content**: 10 phrases, 50s duration, full value delivery" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### AI Enhancements Active" >> $GITHUB_STEP_SUMMARY
-          echo "- Dynamic model discovery (Gemini/Groq)" >> $GITHUB_STEP_SUMMARY
-          echo "- Learned optimal video length" >> $GITHUB_STEP_SUMMARY
-          echo "- A/B test tracking for hooks/titles" >> $GITHUB_STEP_SUMMARY
-          echo "- Value delivery verification" >> $GITHUB_STEP_SUMMARY
-          echo "- Rate limiting (4s Gemini, 2.5s Groq)" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Schedule (6 runs/day)" >> $GITHUB_STEP_SUMMARY
-          echo "- Every 4 hours: 00, 04, 08, 12, 16, 20 UTC" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Channels" >> $GITHUB_STEP_SUMMARY
-          echo "- YouTube: https://www.youtube.com/channel/UC4Y6O0ubwl0_ZQsLq2EteTQ" >> $GITHUB_STEP_SUMMARY
-          echo "- Dailymotion: https://www.dailymotion.com/ViralShorts-Factory" >> $GITHUB_STEP_SUMMARY
