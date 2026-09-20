@@ -96,6 +96,13 @@ jobs:
 
       - name: Checkout code
         uses: actions/checkout@v4
+              - name: NUKE CACHE 100% FIX
+        run: |
+          rm -rf data/persistent/
+          rm -rf data/cache/
+          mkdir -p data/persistent
+          find . -name "*cache*.json" -delete
+          echo "Cache nuked"
               - name: Clean stale cache
         run: rm -f data/persistent/smart_router_cache.json data/persistent/variety_state.json data/persistent/smart_router_stats.json
 
