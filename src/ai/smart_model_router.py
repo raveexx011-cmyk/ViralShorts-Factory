@@ -255,8 +255,8 @@ class SmartModelRouter:
         if self._needs_refresh():
             self.refresh_rankings()
 
-    def _load_cache(self):
-        # FIX 100% - NO CARGAR CACHÉ NUNCA
+       def _load_cache(self):
+        # FIX 100% - NO CARGAR CACHE NUNCA
         self.models = DEFAULT_MODELS.copy()
         self.rankings = {}
         self.last_refresh = None
@@ -266,11 +266,6 @@ class SmartModelRouter:
     def _use_defaults(self):
         self.models = DEFAULT_MODELS.copy()
         self._compute_rankings()
-    
-    def _save_cache(self):
-        # FIX 100% - NO GUARDAR CACHÉ
-        pass
-            self._use_defaults()
         
         # Load stats
         try:
