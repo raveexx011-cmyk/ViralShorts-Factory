@@ -96,6 +96,8 @@ jobs:
 
       - name: Checkout code
         uses: actions/checkout@v4
+              - name: Clean stale cache
+        run: rm -f data/persistent/smart_router_cache.json data/persistent/variety_state.json data/persistent/smart_router_stats.json
 
       - name: Set up Python
         uses: actions/setup-python@v5
