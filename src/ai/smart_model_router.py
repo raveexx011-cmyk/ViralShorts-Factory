@@ -256,22 +256,21 @@ class SmartModelRouter:
         if self._needs_refresh():
             self.refresh_rankings()
     
-    def _load_cache(self):
-        """Load cached router data."""
-        try:
-            if ROUTER_CACHE_FILE.exists():
-                with open(ROUTER_CACHE_FILE, 'r') as f:
-                    data = json.load(f)
-                    self.rankings = data.get("rankings", {})
-                    self.last_refresh = data.get("last_refresh")
-                    # Reconstruct models from cache
-                    for key, model_data in data.get("models", {}).items():
-                        self.models[key] = ModelInfo(**model_data)
-                    safe_print(f"[ROUTER] Loaded cached rankings from {self.last_refresh}")
-            else:
-                self._use_defaults()
-        except Exception as e:
-            safe_print(f"[ROUTER] Cache load failed: {e}, using defaults")
+        def _load_cache(self):
+        # FIX 100% - NO CARGAR CACHÉ NUNCA
+        self.models = DEFAULT_MODELS.copy()
+        self.rankings = {}
+        self.last_refresh = None
+        self.stats = {}
+        return False
+
+    def _use_defaults(self):
+        self.models = DEFAULT_MODELS.copy()
+        self._compute_rankings()
+
+    def _save_cache(self):
+        # FIX 100% - NO GUARDAR CACHÉ
+        pass
             self._use_defaults()
         
         # Load stats
