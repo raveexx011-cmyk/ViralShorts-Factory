@@ -40,16 +40,26 @@ on:
     - cron: '0 20 * * *'  # 20:00 UTC - Video 6/6
 
 jobs:
-  generate:
+ generate:
     runs-on: ubuntu-latest
     timeout-minutes: 120
-
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: NUKE CACHE 100% FIX
+        run: |
+          rm -rf data/persistent/
+          rm -rf data/cache/
+          mkdir -p data/persistent
+          find . -name "*cache*.json" -delete
+          echo "Cache nuked"
+
       - name: Check API availability (FREE - no quota cost)
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
-          echo "v17.9.12: Checking API availability (FREE endpoints only)..."
+          echo "v17.9.12: Checking API availability..."
           
           # Use model INFO endpoint (FREE - no quota cost!)
           # This just checks if the API is reachable and model exists
