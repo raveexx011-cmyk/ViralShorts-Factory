@@ -336,10 +336,7 @@ class SmartModelRouter:
         self.models = DEFAULT_MODELS.copy()
         
         # Discover additional models from each provider
-        self._discover_groq_models()
-        self._discover_gemini_models()
-        self._discover_openrouter_models()
-        self._discover_huggingface_models()
+       
         
         # Compute rankings for each prompt type
         self._compute_rankings()
